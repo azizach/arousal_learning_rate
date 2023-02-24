@@ -20,8 +20,8 @@ def float2pcm(sig, dtype='int16'):
 # Low pass filter 
 def lpf(audio , sampling_freq , cutoff_freq):
     b, a         = signal.butter(5, cutoff_freq/(sampling_freq/2), btype='lowpass')
-    audio_signal = signal.filtfilt(b, a, audio_signal)
-    return audio_signal
+    audio_signal = signal.filtfilt(b, a, audio)
+    return audio
 
 # Normalize audio signal
 def normalizing_audio(audio):
@@ -64,7 +64,7 @@ filtered_audio = normalizing_audio(filtered_audio)
 filtered_audio = float2pcm(filtered_audio)
 
 # Save the filtered audio data to a WAV file
-saving_audio(filtered_audio , "tone_series_rand.wav")
+saving_audio(filtered_audio , "tone_series_rand.wav" , sampling_freq)
 
 # -----------------------------------------------------------------------------
 # REG
@@ -101,6 +101,9 @@ audio_signal  = normalizing_audio(audio_signal)
 audio_signal  = float2pcm(audio_signal)
 
 # Save the filtered audio data to a WAV file
-saving_audio(audio_signal ,"tone_series_reg.wav")
+saving_audio(audio_signal ,"tone_series_reg.wav" , sampling_freq)
+
+
+
 
 
