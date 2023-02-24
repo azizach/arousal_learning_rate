@@ -11,23 +11,6 @@ import pyaudio
 import wave
 from pathlib import Path
 
-# -----------------------------------------------------------------------------
-# Eyetracking callback
-# -----------------------------------------------------------------------------
-
-def gaze_data_callback(flux_oculo):
-            global temps
-            #confidence    = flux_oculo['confidence']
-            timeflow      = flux_oculo['system_time_stamp']
-            coord_RE      = flux_oculo['right_gaze_point_on_display_area']
-            coord_LE      = flux_oculo['left_gaze_point_on_display_area'] 
-            diam_RE_pupil = flux_oculo['right_pupil_diameter']
-            diam_LE_pupil = flux_oculo['left_pupil_diameter']
-        
-            outputfile.write(str(timeflow) +"\t"+ str(coord_RE) +"\t"+ str(coord_LE) +"\t"
-                             + str(diam_RE_pupil) +"\t"+ str(diam_LE_pupil)+ "\t"+ "\n")
-          
-
 #iterating on different sounds 
 
 list_of_files = ['tone_series_rand.wav' , 'tone_series_reg.wav'  ] 
@@ -70,7 +53,7 @@ for audio_file in list_of_files :
     # -----------------------------------------------------------------------------
     # File initiation
     # -----------------------------------------------------------------------------
-    outputfile = open(f"tobiitest_{audio_name}.txt", "w")
+    outputfile = open(f"tobiitest_{audio_name}2.txt", "w")
     outputfile.write( "tobii_time" + "\t" + "RE_coord" + "\t" +
                     "LE_coord" + "\t" + "RE_diam" + "\t"
                     "LE_diam" +  "\t" + "\n")
@@ -82,6 +65,21 @@ for audio_file in list_of_files :
 
     #playing stream and subscribing to eyetracker 
     while data: 
+        # -----------------------------------------------------------------------------
+        # Eyetracking callback
+        # -----------------------------------------------------------------------------
+        def gaze_data_callback(flux_oculo):
+            global temps
+            #confidence    = flux_oculo['confidence']
+            timeflow      = flux_oculo['system_time_stamp']
+            coord_RE      = flux_oculo['right_gaze_point_on_display_area']
+            coord_LE      = flux_oculo['left_gaze_point_on_display_area'] 
+            diam_RE_pupil = flux_oculo['right_pupil_diameter']
+            diam_LE_pupil = flux_oculo['left_pupil_diameter']
+        
+            outputfile.write(str(timeflow) +"\t"+ str(coord_RE) +"\t"+ str(coord_LE) +"\t"
+                             + str(diam_RE_pupil) +"\t"+ str(diam_LE_pupil)+ "\t"+ "\n")
+      
         my_eyetracker.subscribe_to(tr.EYETRACKER_GAZE_DATA, gaze_data_callback, as_dictionary=True) 
         stream.write(data)  
         data = f.readframes(chunk)  
