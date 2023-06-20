@@ -1,0 +1,437 @@
+"""
+@author: Aziza
+"""
+
+import pandas as pd 
+import numpy as np
+import matplotlib.pyplot as plt
+from preprocessing_tools import pupil 
+from scipy import stats
+import seaborn as sns
+from statsmodels.tsa.stattools import adfuller
+from scipy.interpolate import interp1d
+from scipy.stats import ttest_rel
+from itertools import combinations
+import itertools 
+
+
+def interpolate_list_linear(original_list, desired_length):
+    interpolated_list = []
+    original_length = len(original_list)
+    
+    # Calculate the step size for linear interpolation
+    step = (original_length - 1) / (desired_length - 1)
+    
+    for i in range(desired_length):
+        index = i * step
+        lower_index = int(index)
+        upper_index = lower_index + 1
+        
+        # Perform linear interpolation between adjacent elements
+        if upper_index >= original_length:
+            interpolated_list.append(original_list[-1])
+        else:
+            fraction = index - lower_index
+            interpolated_value = (1 - fraction) * original_list[lower_index] + fraction * original_list[upper_index]
+            interpolated_list.append(interpolated_value)
+    
+    return interpolated_list
+
+
+def interpolate_nans(array):
+    nan_indices = np.isnan(array)
+    non_nan_data = array[~nan_indices]
+    non_nan_indices = np.arange(len(array))[~nan_indices]
+    interp_func = interp1d(non_nan_indices, non_nan_data, kind='linear')
+    interpolated_values = interp_func(np.arange(len(array)))
+    array[nan_indices] = interpolated_values[nan_indices]
+    return array
+
+def interpolate_array_length(arr, desired_length):
+    current_length = arr.shape[0]
+
+    if current_length != desired_length:
+        if current_length < desired_length:
+            # Calculate the number of elements to add
+            elements_to_add = desired_length - current_length
+
+            # Determine the padding size for each side of the array
+            pad_width = (0, elements_to_add)
+
+            # Perform the padding by adding elements to the array
+            interpolated_array = np.pad(arr, pad_width, mode='constant', constant_values=interpolated_value)
+            
+        else:
+            interpolated_array = arr[:desired_length]
+
+        return interpolated_array
+    return arr
+
+#------------------------------------------------------------
+# D E F I N I N G  
+#------------------------------------------------------------
+
+snd_list = [ "RAND20" , "RAND5", "RAND10" ,"RAND15", 
+            "full_RAND" ,  "REG5" , "REG10" , "REG15" , "CONST"]
+participants = [['carla0', 'carla1' ,'carla2' ,'carla3', 'carla4'],
+                ['d0', 'd2', 'd3', 'd4' ,'d5', 'd6'], ['e0', 'e1', 'e2', 'e3', 'e4'], 
+                ['f0', 'f1', 'f2', 'f3', 'f4'], ['b1', 'b2', 'b3', 'b4'],
+                ['g0', 'g1', 'g2', 'g4'], ['i0', 'i2', 'i3', 'i4'], 
+                ['j0', 'j1', 'j2', 'j3'], ['k0', 'k1', 'k2', 'k3', 'k4'],  
+                ['l0', 'l1', 'l3', 'l4'], ['m0', 'm1', 'm2', 'm3', 'm4'],
+                ['n0', 'n1', 'n2', 'n3', 'n4', 'n5'], ['p0','p4','p1', 'p2', 'p3'], 
+                ['q0', 'q1', 'q2', 'q3', 'q4'], ['r0', 'r1', 'r2', 'r3', 'r4'], 
+                ['s0', 's1',  's3', 's4'], ['t0', 't1', 't2', 't3', 't4', 't5'],
+                ['f0', 'f1', 'f2', 'f3', 'f4'], ['w0', 'w1', 'w2', 'w3', 'w4'], 
+                ['y0', 'y1', 'y2', 'y3', 'y5'], ['z0', 'z1', 'z2', 'z3', 'z4']]
+start = 5 
+end = 35
+plot = True
+participant_name = [sublist[0][0] for sublist in participants]
+
+
+
+#------------------------------------------------------------
+# L O A D I N G   D A T A  
+#------------------------------------------------------------
+data_list    = []
+for participant in participants:
+    participant_list = []
+    for session in participant :
+            
+        data = pupil()
+        
+        data.import_data_tobii(filename=f'tobiitest_{session}.txt',
+                                directory=(f"C:/Users/Aziza/Stage M2 Comp brain/arousal_testing/{session}_folder"))
+        #remove first event
+        data.events.pop(0)
+        
+        #if first event
+        if len(data.events) !=  8 : 
+            data.events.pop(-1)
+    
+        data.preprocess_tobii(plot=False)
+        
+        
+        # Find rows where the difference in 'time_stamp' is bigger than 17000
+        diff = np.diff(data.data['time_stamp'])
+        mask = diff > 17000
+        rows_to_interpolate = np.where(mask)[0]
+        
+        
+        # Interpolate between rows
+        for row in rows_to_interpolate:
+            # Calculate the mean of 'time_stamp'
+            interpolated_value = np.mean(data.data.loc[row:row + 1, 'time_stamp'])
+        
+            # Create a new row with the interpolated value
+            new_row = pd.DataFrame({'time_stamp': interpolated_value}, index=[row + 0.5])
+        
+            # Insert the new row into the DataFrame
+            data.data = pd.concat([data.data.loc[:row], new_row, data.data.loc[row + 1:]]).reset_index(drop=True)
+            
+            data.data.interpolate(limit_direction='both')
+        
+        # zscore 
+        data.data.diameter_int = ((data.data.diameter_int - data.data.diameter_int.mean())/
+                                  data.data.diameter_int.std())
+        
+
+        
+        # parse the events collected by tobii
+        stim_onset = [snd['time'] for snd in data.events]
+        
+        snd_type = [snd['snd'] for snd in data.events ] 
+        
+        # epoch the data and apply baseline correction
+        data.epoch_tobii(stim_onset, before=start, after=end, variable='diameter_int',
+                         decimate=1,conditions={'snd': snd_type }, baseline=[-2,0])
+        
+        if plot == True : 
+            plt.figure()
+            
+            # Set the desired figure size
+            fig = plt.figure(figsize=(14, 6))
+            # Create color palette using seaborn
+            color_palette = sns.color_palette("Paired")
+            for idx , snd in enumerate(snd_list) : 
+                if snd in set(data.epochs_info['snd']):
+                    if len(data.epochs_times) != len(data.epochs[data.epochs_info['snd'] == snd, :][0]) : 
+                        np.delete(data.epochs[data.epochs_info['snd'] == snd, :][0], 0)
+                    color = color_palette[idx % len(color_palette)]  # Get color from palette using modulo operator
+                    plt.plot(data.epochs_times, np.mean(data.epochs[data.epochs_info['snd'] == snd, :], axis=0), linewidth=1.5,
+                                 label=f'sound {snd}' , color=color)
+            plt.axvline(x=0, color='#7f7f7f', ls='--', lw=1, label='sound onset')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Normalized Pupil size')
+            plt.title('Pupil size through time')
+            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            plt.tight_layout()
+            plt.show()
+        
+        participant_list.append(data)
+        
+    data_list.append(participant_list)
+    
+#------------------------------------------------------------
+# C R E A T I N G   M E A N
+#------------------------------------------------------------
+
+
+total_average       = []
+summary_stats       = []
+participant_average = []
+number_of_samples   = []
+
+for snd in snd_list :
+    m                 = 0 
+    length            = 0 
+    averages          = []
+
+    i = 0 
+    for participant in data_list :
+        for session in participant : 
+            if snd in  set(session.epochs_info['snd']) : 
+                if len(session.epochs_times) != len(session.epochs[session.epochs_info['snd'] == snd, :][0]) : 
+                    m += np.delete(session.epochs[session.epochs_info['snd'] == snd, :][0],0)
+                else :
+                    m += session.epochs[session.epochs_info['snd'] == snd, :][0]
+                i+= 1
+        m = m / len(participant)
+        averages.append(m)
+    number_of_samples.append(i)
+        
+    n=0
+    for x in averages : 
+        n += x
+    n = n/ len(averages)
+    total_average.append(n)
+    participant_average.append(averages)
+
+    
+#PLOTTING AVERAGE FOR EACH PARTICIPANT 
+for i ,  name in zip(range(len(participants)),participant_name):
+    plt.figure()
+    plt.style.use('ggplot')
+    # Create color palette using seaborn
+    color_palette = sns.color_palette("Paired")
+    for j , snd  in zip(range(len(participant_average)), snd_list ) : 
+        x = participant_average[j][i]
+        color = color_palette[j % len(color_palette)]
+        plt.plot(np.linspace(-start, end, len(data.epochs_times)) , x , linewidth= 0.5 ,
+                 label=f'mean sound {snd}' , color = color)
+        plt.title(name)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.tight_layout()
+    plt.axvline(x=0, color='#7f7f7f', ls='--', lw=1, label='sound onset')
+    plt.show()
+    
+#PLOTTING AVERAGE
+colors = itertools.cycle(sns.color_palette("Paired"))
+
+for i, snd, num in zip(total_average, snd_list, number_of_samples):
+    color = next(colors)  # Get the next color from the cycle
+    plt.plot(np.linspace(-start, end, len(data.epochs_times)),
+             i, label=f'mean sound {snd} : {num}',lw=1, color=color)
+plt.xlabel('Averaged normalized pupil size across participants')
+plt.xlabel('Time (s)')
+plt.axvline(x=0, color='#7f7f7f', ls='--', lw=1, label='sound onset')
+plt.title('Averaged normalized pupil size across participants through time')
+plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.show()
+
+
+final_average = []
+
+for snd_event in participant_average : 
+    point_average = []
+    for participant in snd_event :
+        point_average.append(np.nanmean(participant))
+    final_average.append(point_average)
+    
+# Transpose the data
+transposed_data = np.transpose(final_average)
+
+# Create a DataFrame from the transposed data
+df = pd.DataFrame(transposed_data, columns=snd_list)
+
+#
+meds = df.median()
+meds.sort_values(ascending=True, inplace=True)
+df = df[meds.index]
+
+# Create the boxplot using seaborn
+boxplot = sns.boxplot(data=df , palette=("Paired") )
+
+
+# Rotate x-axis tick labels by 45 degrees
+boxplot.set_xticklabels(boxplot.get_xticklabels(), rotation=45)
+
+
+# Display the plot
+plt.show()
+
+'''
+# Remove outliers using the IQR method
+Q1 = df.quantile(0.25)
+Q3 = df.quantile(0.75)
+IQR = Q3 - Q1
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+df_cleaned = df[(df >= lower_bound) & (df <= upper_bound)]
+
+
+# Initialise a list of combinations of groups that are significantly different
+significant_combinations = []
+
+# Check from the outside pairs of boxes inwards
+ls = list(range(1, len(df.columns) + 1))
+combinations = [(ls[x], ls[x + y]) for y in reversed(ls) for x in range((len(ls) - y))]
+for combination in combinations:
+    data1 = df.iloc[:, combination[0] - 1]
+    data2 = df.iloc[:, combination[1] - 1]
+    # Perform paired t-test
+    _, p = ttest_rel(data1, data2)
+    if p < 0.05:
+        significant_combinations.append([combination, p])
+
+print(significant_combinations)
+
+# Set up the figure and axes
+fig, ax = plt.subplots(figsize=(10, 7))
+
+# Plot boxplots
+sns.boxplot(data=df, ax=ax, palette=("Paired") , width=0.6)  # Adjust the width as needed
+plt.xticks(range(len(df.columns)), df.columns, rotation=45)
+plt.xlabel('Columns')
+plt.ylabel('Values')
+
+# Get the y-axis limits
+bottom, top = ax.get_ylim()
+y_range = top - bottom
+
+# Calculate the positions of the boxplots
+boxplot_positions = range(len(df.columns))
+
+# Calculate the positions for the significance bars
+significance_positions = [boxplot_positions[i] + 0.5 for i in range(len(boxplot_positions))]
+
+# Plot the significance bars
+for i, significant_combination in enumerate(significant_combinations):
+    x1 = significance_positions[significant_combination[0][0] - 1]
+    x2 = significance_positions[significant_combination[0][1] - 1]
+    level = len(significant_combinations) - i
+    bar_height = (y_range * 0.07 * level) + top
+    bar_tips = bar_height - (y_range * 0.02)
+    plt.plot([x1, x1, x2, x2], [bar_tips, bar_height, bar_height, bar_tips], lw=1, c='k')
+    p = significant_combination[1]
+    if p < 0.001:
+        sig_symbol = '***'
+    elif p < 0.01:
+        sig_symbol = '**'
+    elif p < 0.05:
+        sig_symbol = '*'
+    text_height = bar_height + (y_range * 0.01)
+    plt.text((x1 + x2) * 0.5, text_height, sig_symbol, ha='center', va='bottom', c='k')
+
+# Adjust layout to center the plot
+plt.tight_layout()
+
+# Show the plot
+plt.show()
+
+
+# Print pairs of significantly different columns
+for combination in significant_combinations:
+    print(f"{snd_list[combination[0][0]-1]} and {snd_list[combination[0][1]-1]} : , p-value : {combination[1]}.")
+
+'''
+
+
+# Calculate the p-values between each pair of columns
+p_values = []
+column_pairs = list(combinations(df.columns, 2))
+for pair in column_pairs:
+    data1 = df[pair[0]]
+    data2 = df[pair[1]]
+    _, p = ttest_rel(data1, data2)
+    p_values.append([pair, p])
+
+# Sort the p-values in ascending order
+p_values.sort(key=lambda x: x[1])
+
+# Get the three pairs with the smallest p-values
+top_three_pairs = p_values[:3]
+
+# Print the top three pairs and their p-values
+print("Top Three Significant Column Pairs:")
+for pair, p_value in top_three_pairs:
+    column1, column2 = pair
+    print(f"{column1} and {column2}: p-value = {p_value}")
+    
+
+# Create a DataFrame with the column pairs and p-values
+df_p_values = pd.DataFrame(p_values, columns=['Column Pair', 'p-value'])
+
+# Sort the DataFrame based on p-values in ascending order
+df_p_values.sort_values(by='p-value', inplace=True)
+
+
+# Assuming you have the necessary variables defined: df
+
+# Initialise a list of combinations of groups that are significantly different
+significant_combinations = []
+
+# Check from the outside pairs of boxes inwards
+ls = list(range(1, len(df.columns) + 1))
+combinations = [(ls[x], ls[x + y]) for y in reversed(ls) for x in range((len(ls) - y))]
+for combination in combinations:
+    data1 = df.iloc[:, combination[0] - 1]
+    data2 = df.iloc[:, combination[1] - 1]
+    # Perform paired t-test
+    _, p = ttest_rel(data1, data2)
+    if p < 0.05:
+        significant_combinations.append([combination, p])
+
+# Set up the figure and axes
+fig, ax = plt.subplots(figsize=(10, 7))
+
+# Plot boxplots
+sns.boxplot(data=df, ax=ax, palette="Paired", width=0.6)  # Adjust the width as needed
+plt.xticks(range(len(df.columns)), df.columns, rotation=45)
+plt.xlabel('Auditory stimuli types')
+plt.ylabel('Averaged normalized pupil diameter across all participants')
+
+# Get the y-axis limits
+bottom, top = ax.get_ylim()
+y_range = top - bottom
+
+# Calculate the positions of the boxplots
+boxplot_positions = range(len(df.columns))
+
+# Calculate the positions for the significance bars
+significance_positions = [boxplot_positions[i] + 0.5 for i in range(len(boxplot_positions))]
+
+# Plot the significance bars
+for i, significant_combination in enumerate(significant_combinations):
+    x1 = significance_positions[significant_combination[0][0] - 1]
+    x2 = significance_positions[significant_combination[0][1] - 1]
+    level = len(significant_combinations) - i
+    bar_height = (y_range * 0.07 * level) + top
+    bar_tips = bar_height - (y_range * 0.02)
+    plt.plot([x1, x1, x2, x2], [bar_tips, bar_height, bar_height, bar_tips], lw=1, c='k')
+    p = significant_combination[1]
+    if p < 0.001:
+        sig_symbol = '***'
+    elif p < 0.01:
+        sig_symbol = '**'
+    elif p < 0.05:
+        sig_symbol = '*'
+    text_height = bar_height + (y_range * 0.01)
+    plt.text((x1 + x2) * 0.5, text_height, sig_symbol, ha='center', va='bottom', c='k')
+
+# Adjust layout to center the plot
+plt.tight_layout()
+
+# Show the plot
+plt.show()
