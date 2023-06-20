@@ -9,6 +9,9 @@ from scipy import signal
 import soundfile as sf
 from pydub import AudioSegment
 
+outputfile = open(f"sound_info.txt", "w")
+outputfile.write( "sound_name" + "\t" + "info" + "\t" + "\n")
+
 
 # Fixing the issues with the subtype 
 def float2pcm(sig, dtype='int16'): 
@@ -87,7 +90,7 @@ total_duration = 40
 # -----------------------------------------------------------------------------
 # RAND-n
 # -----------------------------------------------------------------------------
-def RANDn_gen(n , total_duration):
+def RANDn_gen(n , total_duration , outputfile):
     
     #list of tones in Hz
     tone_list = np.geomspace(freq_min, freq_max, num=5)
@@ -129,14 +132,13 @@ def RANDn_gen(n , total_duration):
     # Save the filtered audio data to a WAV file
     saving_audio(filtered_audio , f"RAND{n}.wav" , sampling_freq)
     
-RANDn_gen(5 , total_duration)
-RANDn_gen(10 , total_duration)
-RANDn_gen(15 , total_duration)
+    #Saving audio info 
+    outputfile.write(str(f"RAND{n}.wav") +"\t"+ str(audio_data) +"\t"+ "\n")
 
 # -----------------------------------------------------------------------------
 # full RAND 
 # -----------------------------------------------------------------------------
-def full_RAND(s):
+def full_RAND(s , outputfile):
     # Generate 20 random frequencies on a logarithmic scale
     #freqs = np.random.lognormal(mean=np.log((freq_min+freq_max)/2), sigma=1, size=2400)
     freqs = np.random.lognormal(mean=np.log((freq_min+freq_max)/2), sigma=1, size=s)
@@ -162,13 +164,14 @@ def full_RAND(s):
 
     # Save the filtered audio data to a WAV file
     saving_audio(filtered_audio , "full_RAND.wav" , sampling_freq)
-
-full_RAND(800)
+    
+    #Saving audio info 
+    outputfile.write(str(f"full_RAND.wav") +"\t"+ str(tone_series) +"\t"+ "\n")
 
 # -----------------------------------------------------------------------------
 # REG10
 # -----------------------------------------------------------------------------
-def REGn_gen(n, total_duration): 
+def REGn_gen(n, total_duration , outputfile): 
     # Set up parameters
     tone_duration = int(sampling_freq * duration)
 
@@ -205,14 +208,13 @@ def REGn_gen(n, total_duration):
     # Save the filtered audio data to a WAV file
     saving_audio(audio_signal ,f"REG{n}.wav" , sampling_freq)
     
-REGn_gen(5, total_duration)
-REGn_gen(10, total_duration)
-REGn_gen(15, total_duration)
+    #Saving audio info 
+    outputfile.write(str(f"REG{n}.wav") +"\t"+ str(tone_seq) +"\t"+ "\n")
 
 # -----------------------------------------------------------------------------
 # CONST
 # -----------------------------------------------------------------------------
-def CONST_gen(total_duration): 
+def CONST_gen(total_duration , outputfile): 
 
     # Generate a random frequency between 222 and 2000 Hz
     freq = np.random.uniform(low=222, high=1000)
@@ -235,66 +237,27 @@ def CONST_gen(total_duration):
     # Save the filtered audio data to a WAV file
     saving_audio(audio_signal ,"CONST.wav" , sampling_freq)
     
-CONST_gen(total_duration)
-
-
+    #Saving audio info 
+    outputfile.write(str(f"CONST.wav") +"\t"+ str(tone) +"\t"+ "\n")
+    
 # -----------------------------------------------------------------------------
-# RAND GAPS
+# GAPS
 # -----------------------------------------------------------------------------
-#Add gaps to audios generated 
-audio = gaps("RAND5.wav" , 100 , 3)
+'''gap_n = 3
+gap_length = 100
+sounds_list =  ["RAND20.wav" , "RAND5.wav", "RAND10.wav" ,"RAND15.wav", "full_RAND.wav" , 
+                "REG5.wav" , "REG10.wav" , "REG15.wav" , "CONST.wav"]
 
-# Export the modified audio file
-audio.export("gap_RAND5.wav", format="wav")
+for snd in sounds_list : 
+    
+    n = snd[0:-4]
+       
+    #Add gaps to audios generated 
+    audio = gaps(snd , gap_length , gap_n)
 
-#Add gaps to audios generated 
-audio = gaps("RAND10.wav" , 100 , 3)
+    # Export the modified audio file
+    audio.export(f"gap_{n}.wav", format="wav")
 
-# Export the modified audio file
-audio.export("gap_RAND10.wav", format="wav")
-
-#Add gaps to audios generated 
-audio = gaps("RAND15.wav" , 100 , 3)
-
-# Export the modified audio file
-audio.export("gap_RAND15.wav", format="wav")
-
-#Add gaps to audios generated 
-audio = gaps("full_RAND.wav" , 100 , 3)
-
-# Export the modified audio file
-audio.export("gap_full_RAND.wav", format="wav")
-# -----------------------------------------------------------------------------
-# REG GAPS 
-# -----------------------------------------------------------------------------
-
-#Add gaps to audios generated 
-audio = gaps("REG5.wav" , 100 , 3)
-
-# Export the modified audio file
-audio.export("gap_REG5.wav", format="wav") 
-
-#Add gaps to audios generated 
-audio = gaps("REG10.wav" , 100 , 3)
-
-# Export the modified audio file
-audio.export("gap_REG10.wav", format="wav") 
-
-#Add gaps to audios generated 
-audio = gaps("REG15.wav" , 100 , 3)
-
-# Export the modified audio file
-audio.export("gap_REG15.wav", format="wav") 
-
-# -----------------------------------------------------------------------------
-# CONST GAP
-# -----------------------------------------------------------------------------
-
-#Add gaps to audios generated 
-audio = gaps("CONST.wav" , 100 , 3)
-
-# Export the modified audio file
-audio.export("gap_CONST.wav", format="wav")
-
-
-
+    #Saving audio info 
+    outputfile.write(str(f"gap_{n}.wav") + "\t" + 'num of gaps : '+ str(gap_n) +'gap length : '
+                     + str(gap_length)  +"\t"+ "\n")'''
